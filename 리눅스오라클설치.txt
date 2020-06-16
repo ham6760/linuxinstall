@@ -1,0 +1,188 @@
+root 로그인
+step1 root에서
+
+sudo yum -y install binutils compat-libstdc++-33 compat-libstdc++-33.i686 ksh
+sudo yum -y install elfutils-libelf elfutils-libelf-devel glibc glibc-common
+sudo yum -y install glibc-devel gcc gcc-c++ libaio libaio.i686 libaio-devel
+sudo yum -y install libaio-devel.i686 libgcc libstdc++ libstdc++.i686
+sudo yum -y install libstdc++-devel libstdc++-devel.i686 make sysstat
+sudo yum -y install unixODBC unixODBC-devel
+
+
+step2
+sudo vi /usr/lib/sysctl.d/00-system.conf
+
+# Disable netfilter on bridges.
+#net.bridge.bridge-nf-call-ip6tables = 0
+#net.bridge.bridge-nf-call-iptables = 0
+#net.bridge.bridge-nf-call-arptables = 0
+
+
+sudo vi /etc/sysctl.conf 끝에 추가
+
+net.ipv4.ip_local_port_range = 9000 65500
+fs.file-max = 6815744
+kernel.shmall = 10523004
+kernel.shmmax = 6465333657
+kernel.shmmni = 4096
+kernel.sem = 250 32000 100 128
+net.core.rmem_default=262144
+net.core.wmem_default=262144
+net.core.rmem_max=4194304
+net.core.wmem_max=1048576
+fs.aio-max-nr = 1048576
+
+
+sudo sysctl -p   파라미터 확인
+
+
+사용자및 그룹생성
+sudo groupadd -g 200 oinstall
+sudo groupadd -g 201 dba
+sudo useradd -u 440 -g oinstall -G dba -d /home/oracle oracle
+sudo passwd oracle
+
+sudo vi /etc/pam.d/login 중간에 내용 추가
+
+
+# pam_selinux.so open should only be followed by sessions to be executed in the user context
+session    required     pam_selinux.so open
+session    required     pam_namespace.so
+# add line start
+session    required     pam_limits.so
+# add line end
+session    optional     pam_keyinit.so force revoke
+session    include      system-auth
+-session   optional     pam_ck_connector.so
+
+
+
+sudo vi /etc/security/limits.conf  아래처럼 내용을 끝에 추가한다
+
+
+oracle   soft   nproc    2047
+oracle   hard   nproc    16384
+oracle   soft   nofile   1024
+oracle   hard   nofile   65536
+
+
+sudo vi /etc/profile    아래처럼 내용을 끝에 추가한다.
+
+
+if [ $USER = "oracle" ]; then
+      if [ $SHELL = "/bin/ksh" ]; then
+           ulimit -p 16384
+           ulimit -n 65536
+      else
+           ulimit -u 16384 -n 65536
+      fi
+fi
+
+
+oracle 환경설정
+
+sudo mkdir -p /usr/oracle/app
+sudo mkdir /usr/oracle/oradata
+sudo chmod -R 755 /usr/oracle
+sudo chown -R oracle:oinstall /usr/oracle
+
+
+
+sudo vi /home/oracle/.bash_profile 내용추가
+
+umask 022
+export ORACLE_BASE=/usr/oracle/app
+
+
+====oracle로그인=====
+
+다음은 ssh를 이용하여 설치 파일을 복사하는 예 이다.
+
+scp ./linux.x64_11gR2_database_*.zip oracle@domain:/home/oracle
+ -나의 경우는 리눅스를 gui를 이용 root로그인때 /home/oracle에 복하애넣음
+
+
+oracle에서
+unzip ./linux.x64_11gR2_database_1of2.zip
+unzip ./linux.x64_11gR2_database_2of2.zip
+
+
+현재 oracle 홈에서
+vi .bash_profile
+다음 내용을 끝에 추가한다.
+
+
+export LANG=C
+
+
+
+./database/runInstaller -jreLoc /usr/lib/jvm/jre
+
+설치후--path설정 (어디에서나 sqlplus명령어실행)
+환경변수를 추가합니다.
+
+vi ~/.bash_profile
+다음 내용을 추가합니다.
+
+export ORACLE_HOME=$ORACLE_BASE/product/11.2.0/dbhome_1
+export PATH=$PATH:$ORACLE_HOME/bin
+source ~/.bash_profile
+
+
+
+---2020추가---
+설치후 sid 추가하는 문제
+ vi ~oracle/.bash_profile
+export ORACLE_SID=orcl
+export ORACLE_OWNER=oracle
+
+
+재부팅후 db down초기값 문제
+$sqlplus /nolog  또는 $ sqlplus "/as sysdba"
+
+SQL>conn sys/as sysdba   
+
+
+lock 풀기
+sql>alter user scott identified by tiger account unlock;
+sql>alter user hr identified by hr account unlock;
+
+
+SQL>conn scott/tiger
+
+
+------reboot후에-----
+$ sqlplus "/as sysdba"
+SQL>startup
+-----
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
